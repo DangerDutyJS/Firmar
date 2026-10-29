@@ -3,11 +3,11 @@
  * `TERMS_VERSION`: la app volverá a pedir la aceptación.
  */
 
-export const TERMS_VERSION = "2026-10-29.2";
+export const TERMS_VERSION = "2026-10-29.3";
 
 export const LEGAL_ENTITY = {
   company: "Vecipp Soluciones",
-  owner: "Yilmer Carrillo Diaz",
+  owners: ["Yilmer Carrillo Diaz", "Yeferson Carrillo"],
   email: "yilmercarrillo74@gmail.com",
   country: "Colombia",
 };
@@ -17,14 +17,15 @@ export interface LegalSection {
   paragraphs: string[];
 }
 
-const { company, owner, email, country } = LEGAL_ENTITY;
+const { company, email, country } = LEGAL_ENTITY;
+const owners = LEGAL_ENTITY.owners.join(" y ");
 const effective = "29 de octubre de 2026";
 
 export const TERMS: LegalSection[] = [
   {
     title: "1. Quién ofrece Firmar Vecipp",
     paragraphs: [
-      `Firmar Vecipp es un programa de ${company}, cuyo responsable es ${owner} (${country}). Contacto: ${email}.`,
+      `Firmar Vecipp es un programa de ${company}, cuyos responsables son ${owners} (${country}). Contacto: ${email}.`,
       "Al instalar o usar Firmar Vecipp aceptas estos términos. Si no estás de acuerdo, no uses el programa.",
     ],
   },
@@ -78,7 +79,7 @@ export const PRIVACY: LegalSection[] = [
   {
     title: "1. Responsable",
     paragraphs: [
-      `${company} (responsable: ${owner}), ${country}. Correo para consultas y reclamos: ${email}. Esta política cumple la Ley 1581 de 2012 y el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015).`,
+      `${company} (responsables: ${owners}), ${country}. Correo para consultas y reclamos: ${email}. Esta política cumple la Ley 1581 de 2012 y el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015).`,
     ],
   },
   {

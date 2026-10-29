@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { AppMark } from "../brand/Logo";
 import { api, errorMessage } from "../lib/ipc";
 import { useFirmarStore } from "../store/useFirmarStore";
 import { LEGAL_ENTITY, PRIVACY, TERMS, TERMS_VERSION, type LegalSection } from "./legal";
@@ -137,7 +138,7 @@ export function AboutView() {
         {tab === "about" && (
           <div className="space-y-5 text-sm text-slate-300">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500 text-xl font-bold text-white">F</div>
+              <AppMark className="h-12 w-12" />
               <div>
                 <h2 className="text-lg font-semibold text-white">Firmar Vecipp {version && `v${version}`}</h2>
                 <p className="text-slate-400">
@@ -154,8 +155,8 @@ export function AboutView() {
               </p>
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
-              <dt className="text-slate-500">Responsable</dt>
-              <dd>{LEGAL_ENTITY.owner}</dd>
+              <dt className="text-slate-500">Responsables</dt>
+              <dd>{LEGAL_ENTITY.owners.join(" y ")}</dd>
               <dt className="text-slate-500">Contacto</dt>
               <dd className="select-text">{LEGAL_ENTITY.email}</dd>
               <dt className="text-slate-500">Tu identidad</dt>

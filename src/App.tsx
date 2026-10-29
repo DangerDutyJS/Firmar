@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { AppMark } from "./brand/Logo";
+import { Splash } from "./brand/Splash";
 import { api } from "./lib/ipc";
 import { BatchView } from "./features/batch/BatchView";
 import { HistoryView } from "./features/history/HistoryView";
@@ -25,12 +27,15 @@ const NAV: { view: View; label: string; icon: string }[] = [
 
 export default function App() {
   return (
-    <TermsGate>
-      <LockGate>
-        <Shell />
-      </LockGate>
-      <UpdateChecker />
-    </TermsGate>
+    <>
+      <TermsGate>
+        <LockGate>
+          <Shell />
+        </LockGate>
+        <UpdateChecker />
+      </TermsGate>
+      <Splash />
+    </>
   );
 }
 
@@ -72,7 +77,7 @@ function Shell() {
     <div className="flex h-full">
       <nav className="flex w-56 shrink-0 flex-col border-r border-ink-800 bg-ink-900 p-4">
         <div className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 font-bold text-white">F</div>
+          <AppMark className="h-8 w-8" />
           <span className="text-lg font-semibold tracking-tight text-white">
             Firmar <span className="font-normal text-slate-400">Vecipp</span>
           </span>

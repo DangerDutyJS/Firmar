@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1e3246"/>
+  <!-- Isotipo Vecipp: V diagonal blanca, triángulo verde arriba y triángulo blanco a la derecha. -->
+  <g transform="translate(78 91)">
+    <path d="M24 64h64l72 176 44-108h56l-72 168h-56Z" fill="#ffffff"/>
+    <path d="M204 112 240 30l36 82Z" fill="#25c15b"/>
+    <path d="M284 128l48 42-48 42Z" fill="#ffffff"/>
+  </g>
+</svg>
