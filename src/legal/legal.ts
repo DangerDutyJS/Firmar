@@ -3,7 +3,7 @@
  * `TERMS_VERSION`: la app volverá a pedir la aceptación.
  */
 
-export const TERMS_VERSION = "2026-10-28";
+export const TERMS_VERSION = "2026-10-29";
 
 export const LEGAL_ENTITY = {
   company: "Vecipp Soluciones",
@@ -18,7 +18,7 @@ export interface LegalSection {
 }
 
 const { company, owner, email, country } = LEGAL_ENTITY;
-const effective = "28 de octubre de 2026";
+const effective = "29 de octubre de 2026";
 
 export const TERMS: LegalSection[] = [
   {
@@ -66,6 +66,7 @@ export const TERMS: LegalSection[] = [
   {
     title: "7. Cambios y ley aplicable",
     paragraphs: [
+      "Firmar Vecipp puede ofrecerte actualizaciones. Solo se instalan si las aceptas, y antes se verifica que estén firmadas por el responsable.",
       "Si estos términos cambian, Firmar Vecipp te pedirá aceptarlos de nuevo antes de seguir usándolo.",
       `Estos términos se rigen por las leyes de la República de ${country}. Vigentes desde el ${effective}.`,
     ],
@@ -80,9 +81,10 @@ export const PRIVACY: LegalSection[] = [
     ],
   },
   {
-    title: "2. Firmar Vecipp funciona sin conexión: no recibimos tus datos",
+    title: "2. Tus firmas y documentos no salen de tu equipo",
     paragraphs: [
-      "Firmar Vecipp no se conecta a internet, no tiene cuentas de usuario, no usa analítica ni telemetría y no envía ningún dato al responsable ni a terceros.",
+      "Firmar Vecipp firma y verifica documentos sin conexión, no tiene cuentas de usuario, no usa analítica ni telemetría y no envía tus documentos, firmas ni historial al responsable ni a terceros.",
+      "La única conexión a internet es la búsqueda de actualizaciones: al abrir la app (o al pulsar «Buscar ahora») se consulta un archivo público en GitHub (GitHub, Inc., Estados Unidos) para saber si hay una versión nueva y, si aceptas instalarla, se descarga desde allí. Como en cualquier conexión, GitHub recibe tu dirección IP y la versión del programa; el responsable de Firmar Vecipp no recibe esos datos. Puedes desactivar la búsqueda automática en «Acerca de».",
       "Todo lo que la app guarda queda en tu equipo, en la carpeta de datos de la aplicación y en el llavero del sistema operativo (Administrador de credenciales de Windows): las imágenes de tus firmas, una copia cifrada de cada documento original que firmas (para poder re-posicionar la firma), el historial de documentos firmados y tus claves criptográficas. Las firmas, los originales y el historial están cifrados con AES-256-GCM.",
     ],
   },

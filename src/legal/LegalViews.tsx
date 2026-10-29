@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { api, errorMessage } from "../lib/ipc";
 import { useFirmarStore } from "../store/useFirmarStore";
 import { LEGAL_ENTITY, PRIVACY, TERMS, TERMS_VERSION, type LegalSection } from "./legal";
+import { UpdateSettings } from "../features/updates/UpdateChecker";
 
 function Sections({ sections }: { sections: LegalSection[] }) {
   return (
@@ -61,7 +62,7 @@ export function TermsGate({ children }: { children: React.ReactNode }) {
         </header>
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <strong>En resumen:</strong> Firmar Vecipp crea una <em>firma electrónica simple</em> y detecta si un documento cambió
-          después de firmarlo. No es una firma digital certificada. Todo se queda en tu equipo: no recibimos ningún dato.
+          después de firmarlo. No es una firma digital certificada. Tus firmas y documentos se quedan en tu equipo: no recibimos ningún dato.
         </div>
         <div className="flex gap-1 text-sm">
           {(["terms", "privacy"] as const).map((t) => (
@@ -176,8 +177,10 @@ export function AboutView() {
                 {accepted && ` · ${new Date(accepted).toLocaleString()}`}
               </dd>
             </dl>
+            <UpdateSettings />
             <p className="text-slate-500">
-              Funciona 100 % sin conexión. Criptografía: Ed25519, SHA-256, AES-256-GCM y Argon2id.
+              Firma y verifica sin conexión; solo usa internet para buscar actualizaciones. Criptografía: Ed25519,
+              SHA-256, AES-256-GCM y Argon2id.
             </p>
           </div>
         )}

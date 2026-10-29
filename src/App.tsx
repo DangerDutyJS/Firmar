@@ -5,6 +5,7 @@ import { api } from "./lib/ipc";
 import { BatchView } from "./features/batch/BatchView";
 import { HistoryView } from "./features/history/HistoryView";
 import { AboutView, TermsGate } from "./legal/LegalViews";
+import { UpdateChecker } from "./features/updates/UpdateChecker";
 import { SecurityView } from "./features/security/SecurityView";
 import { SignerView } from "./features/signer/SignerView";
 import { VaultView } from "./features/vault/VaultView";
@@ -23,6 +24,7 @@ export default function App() {
   return (
     <TermsGate>
       <Shell />
+      <UpdateChecker />
     </TermsGate>
   );
 }
@@ -88,7 +90,7 @@ function Shell() {
         </ul>
         <div className="mt-auto space-y-1 px-2 text-xs text-slate-500">
           <p className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> 100% offline
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Tus datos no salen del equipo
           </p>
           {identity && (
             <p title={identity.vaultPath}>

@@ -54,6 +54,18 @@
     },
     "publisher": "Vecipp Soluciones",
     "copyright": "© 2026 Vecipp Soluciones",
-    "shortDescription": "Firma electrónica de documentos, 100 % sin conexión"
+    "shortDescription": "Firma electrónica de documentos, 100 % sin conexión",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYwOTcyMDRBOUZDMzAyODUKUldTRkFzT2ZTaUNYWUx1aVJnUmRNWGRHNW9HbFlKd1o5Yml0ejhhWFJQMThsdUt6YXlsL05JVEsK",
+      "endpoints": [
+        "https://github.com/DangerDutyJS/Firmar/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

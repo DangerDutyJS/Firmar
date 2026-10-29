@@ -26,3 +26,6 @@ dist-ssr
 # recursos de pdf.js copiados en predev/prebuild
 public/pdfjs
 public/third-party-licenses.txt
+
+# artefactos de publicación (scripts/release.mjs)
+release/

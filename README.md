@@ -1,6 +1,6 @@
 # Firmar Vecipp
 
-Aplicación de escritorio para **firmar documentos con tu firma manuscrita** y detectar si alguien los modifica después. Funciona **100 % sin conexión**: tus firmas, claves y documentos nunca salen de tu equipo.
+Aplicación de escritorio para **firmar documentos con tu firma manuscrita** y detectar si alguien los modifica después. Firma y verifica **sin conexión**: tus firmas, claves y documentos nunca salen de tu equipo. Solo usa internet para buscar actualizaciones (se puede desactivar).
 
 Desarrollada por **Vecipp Soluciones** (Colombia).
 
@@ -14,6 +14,7 @@ Desarrollada por **Vecipp Soluciones** (Colombia).
 - **Historial** cifrado de lo que firmaste, con verificación instantánea.
 - **Copia de seguridad** cifrada con contraseña (Argon2id) para cambiar de equipo sin perder nada.
 - **«Firmar con Firmar Vecipp»** desde el menú contextual del Explorador de Windows.
+- **Actualizaciones automáticas** firmadas: la app avisa cuando hay una versión nueva y la instala con un clic.
 
 ## Alcance legal
 
@@ -33,6 +34,14 @@ npm run tauri dev     # app en modo desarrollo
 npm run tauri build   # instalador en src-tauri/target/release/bundle/nsis/
 cd src-tauri && cargo test
 ```
+
+## Publicar una versión nueva
+
+```bash
+npm run release -- 0.2.0 "Novedades de esta versión"
+```
+
+Sube la versión, compila el instalador firmado, genera `latest.json` y crea el Release en GitHub. Las copias instaladas lo detectan al abrirse. Necesita la clave privada de actualizaciones en `%USERPROFILE%\.tauri\firmar-vecipp.key` (**nunca** la subas al repositorio; si se pierde, las copias instaladas no podrán actualizarse).
 
 ## Arquitectura
 

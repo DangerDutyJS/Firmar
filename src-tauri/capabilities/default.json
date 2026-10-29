@@ -11,6 +11,8 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "core:window:allow-set-fullscreen",
-    "core:window:allow-is-fullscreen"
+    "core:window:allow-is-fullscreen",
+    "updater:default",
+    "process:allow-restart"
   ]
 }
