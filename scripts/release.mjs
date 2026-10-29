@@ -30,9 +30,11 @@ if (!existsSync(keyPath)) {
 const notes = notesArg && existsSync(notesArg) ? readFileSync(notesArg, "utf8") : notesArg || `Firmar Vecipp ${version}`;
 const tag = `v${version}`;
 
-const run = (cmd, args, opts = {}) =>
-  execFileSync(cmd, args, { cwd: root, stdio: "inherit", shell: process.platform === "win32", ...opts });
-const output = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: "utf8", shell: process.platform === "win32" }).trim();
+// Solo `npx` necesita el shell en Windows (es un .cmd). Con git y gh no se usa:
+// el shell partiría por los espacios argumentos como «Firmar Vecipp 0.1.0».
+const needsShell = (cmd) => process.platform === "win32" && cmd === "npx";
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, stdio: "inherit", shell: needsShell(cmd), ...opts });
+const output = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: "utf8", shell: needsShell(cmd) }).trim();
 
 if (output("git", ["status", "--porcelain"])) {
   console.error("Hay cambios sin confirmar. Haz commit antes de publicar.");
