@@ -22,19 +22,27 @@ export function StatusBanner({ inspection }: { inspection: DocumentInspection })
   const modified = status.state === "modifiedAfterSigning";
   const when = meta ? ` el ${date(meta.signedAt)}` : "";
 
+  // Quién firmó: tú, un contacto de confianza (verificado) o un nombre declarado (sin verificar).
+  const who = status.owned
+    ? "ti"
+    : status.contactName
+      ? status.contactName
+      : status.signerName
+        ? `«${status.signerName}»`
+        : "otra persona";
+
   const title = modified
-    ? "Firmado, pero otro programa le añadió cambios después"
-    : status.owned
-      ? `Firmado por ti${when}`
-      : "Firmado por otra persona";
+    ? `Firmado por ${who}, pero otro programa le añadió cambios después`
+    : `Firmado por ${who}${status.owned ? when : ""}`;
 
   const body = modified
-    ? "Lo que firmaste sigue intacto, pero el archivo tiene contenido añadido después de la firma. Revisa quién lo editó."
+    ? "Lo firmado sigue intacto, pero el archivo tiene contenido añadido después de la firma. Revisa quién lo editó."
     : status.owned
       ? "Nadie lo ha modificado desde que lo firmaste."
-      : "La firma es auténtica y el documento no ha cambiado. Solo su autor puede ver los detalles.";
+      : "La firma es auténtica y el documento no ha cambiado desde que se firmó.";
 
   const rows: [string, string][] = [["Huella del firmante", status.signerFingerprint]];
+  if (status.signerName) rows.unshift(["Nombre en el sello", status.signerName]);
   if (meta) {
     rows.push(
       ["Firma usada", meta.profileName],
@@ -47,8 +55,32 @@ export function StatusBanner({ inspection }: { inspection: DocumentInspection })
   return (
     <Banner tone={modified ? "warning" : "success"} icon={modified ? "!" : "✓"} title={title}>
       <p>{body}</p>
+      {!status.owned && <IdentityNote contactName={status.contactName} signerName={status.signerName} />}
       <Details rows={rows} />
     </Banner>
+  );
+}
+
+/** Aclara si la identidad del firmante está verificada por tus contactos. */
+function IdentityNote({ contactName, signerName }: { contactName: string | null; signerName: string | null }) {
+  if (contactName) {
+    return (
+      <p className="mt-1 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-200">
+          ✓ Contacto verificado
+        </span>
+        {signerName && signerName !== contactName && (
+          <span className="text-xs opacity-80">En el sello se identificó como «{signerName}».</span>
+        )}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs opacity-90">
+      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 font-medium text-amber-200">Identidad no verificada</span>{" "}
+      {signerName ? "Cualquiera puede escribir un nombre." : "El firmante no puso su nombre."} Para confirmar quién es,
+      pídele su tarjeta de identidad e impórtala en «Identidad».
+    </p>
   );
 }
 

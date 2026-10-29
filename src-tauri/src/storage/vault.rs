@@ -151,6 +151,8 @@ impl Vault {
         profiles: &[SignatureProfile],
         originals: &[(Uuid, Vec<u8>)],
         history: &[crate::storage::HistoryEntry],
+        my_profile: &crate::storage::MyProfile,
+        contacts: &[crate::storage::Contact],
     ) -> FirmarResult<StagedVault> {
         let name = self.root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "vault".into());
         let staging = self.root.with_file_name(format!("{name}.staging-{}", Uuid::new_v4().simple()));
@@ -158,6 +160,8 @@ impl Vault {
         let result = (|| {
             staged.write_profiles(key, profiles)?;
             staged.write_history(key, history)?;
+            staged.write_my_profile(key, my_profile)?;
+            staged.write_contacts(key, contacts)?;
             for (id, bytes) in originals {
                 staged.store_original(key, *id, bytes)?;
             }

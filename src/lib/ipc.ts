@@ -9,8 +9,9 @@ export interface SignaturePlacement {
   y: number;
   width: number;
   height: number;
-  /** Texto bajo la firma (nombre, fecha…), hasta 3 líneas. */
+  /** Texto bajo la firma (nombre, fecha…), hasta 5 líneas. */
   caption?: string | null;
+  captionAlign?: "left" | "center" | "right" | null;
 }
 
 export interface HistoryEntry {
@@ -30,6 +31,7 @@ export interface PlacementTemplate {
   y: number;
   width: number;
   caption: string | null;
+  captionAlign: "left" | "center" | "right" | null;
 }
 
 export interface BatchItem {
@@ -59,6 +61,10 @@ export interface FirmarMetadataPayload {
 interface SignedState {
   owned: boolean;
   signerFingerprint: string;
+  /** Nombre que el firmante declaró en el sello (no verificado). */
+  signerName: string | null;
+  /** Nombre del contacto de confianza con esa clave, si lo es. */
+  contactName: string | null;
   metadata: FirmarMetadataPayload | null;
 }
 
@@ -121,6 +127,26 @@ export interface BackupSummary {
   documents: number;
 }
 
+export interface MyIdentity {
+  name: string | null;
+  fingerprint: string;
+}
+
+export interface ContactView {
+  name: string;
+  fingerprint: string;
+  addedAt: string;
+}
+
+export interface LockView {
+  enabled: boolean;
+  locked: boolean;
+  hello: boolean;
+  autoLockMinutes: number;
+  retryInSeconds: number;
+  helloAvailable: boolean;
+}
+
 export interface LegalStatus {
   acceptedVersion: string | null;
   acceptedAt: string | null;
@@ -160,6 +186,22 @@ export const api = {
   historyList: () => invoke<HistoryEntry[]>("history_list"),
   historyForget: (documentId: string) => invoke<void>("history_forget", { documentId }),
   takeLaunchFile: () => invoke<string | null>("take_launch_file"),
+
+  identityGet: () => invoke<MyIdentity>("identity_get"),
+  identitySetName: (name: string | null) => invoke<MyIdentity>("identity_set_name", { name }),
+  identityExportCard: (path: string) => invoke<void>("identity_export_card", { path }),
+  contactsList: () => invoke<ContactView[]>("contacts_list"),
+  contactImport: (path: string) => invoke<ContactView>("contact_import", { path }),
+  contactRename: (fingerprint: string, name: string) => invoke<void>("contact_rename", { fingerprint, name }),
+  contactRemove: (fingerprint: string) => invoke<void>("contact_remove", { fingerprint }),
+
+  lockStatus: () => invoke<LockView>("lock_status"),
+  lockSetPin: (pin: string) => invoke<void>("lock_set_pin", { pin }),
+  lockDisable: () => invoke<void>("lock_disable"),
+  lockSetOptions: (hello: boolean, autoLockMinutes: number) => invoke<void>("lock_set_options", { hello, autoLockMinutes }),
+  lockUnlockPin: (pin: string) => invoke<void>("lock_unlock_pin", { pin }),
+  lockUnlockHello: () => invoke<void>("lock_unlock_hello"),
+  lockNow: () => invoke<void>("lock_now"),
 
   legalStatus: () => invoke<LegalStatus>("legal_status"),
   legalAccept: (version: string) => invoke<LegalStatus>("legal_accept", { version }),

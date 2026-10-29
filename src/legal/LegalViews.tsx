@@ -105,21 +105,12 @@ export function AboutView() {
   const identity = useFirmarStore((s) => s.identity);
   const [tab, setTab] = useState<AboutTab>("about");
   const [version, setVersion] = useState("");
-  const [licenses, setLicenses] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<string | null>(null);
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => undefined);
     api.legalStatus().then((s) => setAccepted(s.acceptedAt)).catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    if (tab !== "licenses" || licenses !== null) return;
-    fetch("/third-party-licenses.txt")
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
-      .then(setLicenses)
-      .catch(() => setLicenses("No se encontró el archivo de licencias. Se genera con «npm run build»."));
-  }, [tab, licenses]);
 
   const TABS: [AboutTab, string][] = [
     ["about", "Acerca de"],
@@ -186,12 +177,84 @@ export function AboutView() {
         )}
         {tab === "terms" && <Sections sections={TERMS} />}
         {tab === "privacy" && <Sections sections={PRIVACY} />}
-        {tab === "licenses" && (
-          <pre className="text-xs leading-relaxed whitespace-pre-wrap text-slate-400 select-text">
-            {licenses ?? "Cargando…"}
-          </pre>
-        )}
+        {tab === "licenses" && <LicensesList />}
       </div>
+    </div>
+  );
+}
+
+interface LicensesData {
+  total: number;
+  texts: string[];
+  components: { name: string; version: string; license: string; url: string; text: number }[];
+}
+
+/**
+ * Componentes de terceros con su licencia. El texto completo solo se pinta al
+ * abrir un componente: pintar los ~2 MB de golpe congela la ventana.
+ */
+function LicensesList() {
+  const [data, setData] = useState<LicensesData | null>(null);
+  const [error, setError] = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/third-party-licenses.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(setData)
+      .catch(() => setError(true));
+  }, []);
+
+  if (error) return <p className="text-sm text-slate-400">No se encontró la lista de licencias. Se genera con «npm run build».</p>;
+  if (!data) return <p className="text-sm text-slate-400">Cargando…</p>;
+
+  const q = query.trim().toLowerCase();
+  const shown = q ? data.components.filter((c) => c.name.toLowerCase().includes(q) || c.license.toLowerCase().includes(q)) : data.components;
+
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="mr-auto text-slate-400">
+          Firmar Vecipp incluye {data.total} componentes de terceros. Gracias a sus autores.
+        </p>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar componente o licencia…"
+          className="w-64 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 text-white outline-none focus:border-brand-500"
+        />
+      </div>
+      <ul className="divide-y divide-ink-800 rounded-xl border border-ink-800">
+        {shown.map((c) => {
+          const key = `${c.name}@${c.version}`;
+          const isOpen = open === key;
+          return (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : key)}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-ink-800/60"
+              >
+                <span className="w-3 text-slate-500">{isOpen ? "▾" : "▸"}</span>
+                <span className="min-w-0 flex-1 truncate text-slate-200">
+                  {c.name} <span className="text-slate-500">{c.version}</span>
+                </span>
+                <span className="shrink-0 rounded bg-ink-800 px-2 py-0.5 text-xs text-slate-400">{c.license}</span>
+              </button>
+              {isOpen && (
+                <div className="space-y-2 border-t border-ink-800 bg-ink-950/50 px-4 py-3">
+                  {c.url && <p className="text-xs break-all text-slate-500 select-text">{c.url}</p>}
+                  <pre className="max-h-96 overflow-y-auto text-xs leading-relaxed whitespace-pre-wrap text-slate-400 select-text">
+                    {data.texts[c.text]}
+                  </pre>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {shown.length === 0 && <p className="text-slate-500">Ningún componente coincide.</p>}
     </div>
   );
 }

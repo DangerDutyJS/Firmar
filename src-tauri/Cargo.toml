@@ -46,6 +46,11 @@ tauri-plugin-process = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[target.'cfg(windows)'.dependencies]
+# Windows Hello (misma versión que usa Tauri internamente).
+windows = { version = "0.62", features = ["Security_Credentials_UI", "Win32_Foundation", "Win32_System_WinRT"] }
+windows-future = "0.3"
+
 [profile.release]
 codegen-units = 1
 lto = true

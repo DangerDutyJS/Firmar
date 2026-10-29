@@ -8,9 +8,9 @@ import {
   type ProfileView,
   type SignaturePlacement,
 } from "../lib/ipc";
-import { EMPTY_CAPTION, type CaptionSettings } from "../features/signer/caption";
+import { normalizeCaption, type CaptionAlign, type CaptionSettings } from "../features/signer/caption";
 
-export type View = "signer" | "batch" | "history" | "vault" | "security" | "about";
+export type View = "signer" | "batch" | "history" | "identity" | "vault" | "security" | "about";
 
 export interface NoticeAction {
   label: string;
@@ -37,10 +37,9 @@ const HISTORY_LIMIT = 100;
 
 function loadCaption(): CaptionSettings {
   try {
-    const v = JSON.parse(localStorage.getItem(CAPTION_KEY) ?? "null");
-    return v && typeof v === "object" ? { ...EMPTY_CAPTION, ...v } : EMPTY_CAPTION;
+    return normalizeCaption(JSON.parse(localStorage.getItem(CAPTION_KEY) ?? "null"));
   } catch {
-    return EMPTY_CAPTION;
+    return normalizeCaption(null);
   }
 }
 
@@ -96,6 +95,8 @@ interface FirmarState {
   notices: Notice[];
   remembered: RememberedPlacement | null;
   caption: CaptionSettings;
+  /** Nombre de «Identidad»: lo que sustituye a `{nombre}` en el texto. */
+  myName: string | null;
   /** Deshacer / rehacer de las firmas colocadas en el documento abierto. */
   past: PlacedSignature[][];
   future: PlacedSignature[][];
@@ -120,7 +121,12 @@ interface FirmarState {
   undo: () => void;
   redo: () => void;
   /** Aplica el texto a todas las firmas colocadas y lo recuerda. */
-  setCaption: (settings: CaptionSettings, caption: string | null, resize: (p: PlacedSignature) => Partial<SignaturePlacement>) => void;
+  setCaption: (
+    settings: CaptionSettings,
+    stamp: { caption: string | null; captionAlign: CaptionAlign },
+    resize: (p: PlacedSignature) => Partial<SignaturePlacement>,
+  ) => void;
+  setMyName: (name: string | null) => void;
   requestOpen: (path: string | null) => void;
   setBatchQueue: (paths: string[]) => void;
 
@@ -149,6 +155,7 @@ export const useFirmarStore = create<FirmarState>((set, get) => ({
   notices: [],
   remembered: loadRemembered(),
   caption: loadCaption(),
+  myName: null,
   past: [],
   future: [],
   pendingOpen: null,
@@ -160,6 +167,10 @@ export const useFirmarStore = create<FirmarState>((set, get) => ({
     try {
       const identity = await api.identityInfo();
       set({ identity });
+      api
+        .identityGet()
+        .then((me) => set({ myName: me.name }))
+        .catch(() => undefined);
       await get().refreshProfiles();
       if (get().profiles.length === 0) set({ view: "vault" });
     } catch (e) {
@@ -228,15 +239,19 @@ export const useFirmarStore = create<FirmarState>((set, get) => ({
       return { placements: next, past: [...s.past, s.placements], future: rest };
     }),
 
-  setCaption: (settings, caption, resize) => {
+  setCaption: (settings, { caption, captionAlign }, resize) => {
     saveCaption(settings);
-    const changed = get().placements.some((p) => (p.caption ?? null) !== caption);
+    const changed = get().placements.some(
+      (p) => (p.caption ?? null) !== caption || (p.captionAlign ?? "center") !== captionAlign,
+    );
     if (changed) get().checkpoint();
     set((s) => ({
       caption: settings,
-      placements: changed ? s.placements.map((p) => ({ ...p, ...resize(p), caption })) : s.placements,
+      placements: changed ? s.placements.map((p) => ({ ...p, ...resize(p), caption, captionAlign })) : s.placements,
     }));
   },
+
+  setMyName: (myName) => set({ myName }),
 
   requestOpen: (pendingOpen) => set({ pendingOpen, view: pendingOpen ? "signer" : get().view }),
 

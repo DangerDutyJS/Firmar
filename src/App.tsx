@@ -6,6 +6,8 @@ import { BatchView } from "./features/batch/BatchView";
 import { HistoryView } from "./features/history/HistoryView";
 import { AboutView, TermsGate } from "./legal/LegalViews";
 import { UpdateChecker } from "./features/updates/UpdateChecker";
+import { IdentityView } from "./features/identity/IdentityView";
+import { LockGate } from "./features/lock/AppLock";
 import { SecurityView } from "./features/security/SecurityView";
 import { SignerView } from "./features/signer/SignerView";
 import { VaultView } from "./features/vault/VaultView";
@@ -15,15 +17,18 @@ const NAV: { view: View; label: string; icon: string }[] = [
   { view: "signer", label: "Firmar", icon: "M4 20h16M6 16l9.5-9.5a2.1 2.1 0 0 1 3 3L9 19H6v-3Z" },
   { view: "batch", label: "Firmar varios", icon: "M8 4h10v14M5 7h10v13H5z" },
   { view: "history", label: "Historial", icon: "M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v4h4" },
+  { view: "identity", label: "Identidad", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" },
   { view: "vault", label: "Mis firmas", icon: "M5 11h14v9H5zM8 11V8a4 4 0 1 1 8 0v3" },
-  { view: "security", label: "Copia de seguridad", icon: "M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z" },
+  { view: "security", label: "Seguridad", icon: "M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z" },
   { view: "about", label: "Acerca de", icon: "M12 8h.01M11 12h1v4h1M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" },
 ];
 
 export default function App() {
   return (
     <TermsGate>
-      <Shell />
+      <LockGate>
+        <Shell />
+      </LockGate>
       <UpdateChecker />
     </TermsGate>
   );
@@ -104,6 +109,7 @@ function Shell() {
         {view === "signer" && <SignerView />}
         {view === "batch" && <BatchView />}
         {view === "history" && <HistoryView />}
+        {view === "identity" && <IdentityView />}
         {view === "vault" && <VaultView />}
         {view === "security" && <SecurityView />}
         {view === "about" && <AboutView />}

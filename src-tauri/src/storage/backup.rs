@@ -12,7 +12,7 @@ use zeroize::Zeroizing;
 use crate::crypto::{self, Identity, KEY_LEN, VaultKey};
 use crate::domain::SignatureProfile;
 use crate::error::{FirmarError, FirmarResult};
-use crate::storage::{HistoryEntry, KeyMaterial, Vault};
+use crate::storage::{Contact, HistoryEntry, KeyMaterial, MyProfile, Vault};
 
 const FORMAT: &str = "firmar-backup";
 const VERSION: u32 = 1;
@@ -58,6 +58,10 @@ struct BackupPayload {
     originals: Vec<StoredOriginal>,
     #[serde(default)]
     history: Vec<HistoryEntry>,
+    #[serde(default)]
+    my_profile: MyProfile,
+    #[serde(default)]
+    contacts: Vec<Contact>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -97,6 +101,8 @@ pub fn export(keys: &KeyMaterial, vault: &Vault, password: &str) -> FirmarResult
             .map(|id| Ok(StoredOriginal { document_id: id, bytes: vault.load_original(&keys.vault_key, id)? }))
             .collect::<FirmarResult<_>>()?,
         history: vault.list_history(&keys.vault_key)?,
+        my_profile: vault.my_profile(&keys.vault_key)?,
+        contacts: vault.list_contacts(&keys.vault_key)?,
     };
     let plain = Zeroizing::new(serde_json::to_vec(&payload)?);
 
@@ -160,9 +166,18 @@ pub fn restore(bytes: &[u8], password: &str, current: &KeyMaterial, vault: &Vaul
     }
     history.sort_by_key(|h| std::cmp::Reverse(h.signed_at));
 
+    let mut contacts = payload.contacts.clone();
+    for c in vault.list_contacts(&current.vault_key)? {
+        if c.public_key != restored.identity.public_key() && !contacts.iter().any(|k| k.public_key == c.public_key) {
+            contacts.push(c);
+        }
+    }
+    // El nombre va con la identidad restaurada; si la copia no lo tenía, se conserva el actual.
+    let my_profile = if payload.my_profile.name.is_some() { payload.my_profile.clone() } else { vault.my_profile(&current.vault_key)? };
+
     // Primero se prepara la bóveda nueva, luego se guardan las claves y solo
     // entonces se activa: un fallo intermedio deja la bóveda anterior intacta.
-    let staged = vault.stage_replacement(&restored.vault_key, &profiles, &originals, &history)?;
+    let staged = vault.stage_replacement(&restored.vault_key, &profiles, &originals, &history, &my_profile, &contacts)?;
     if let Err(e) = restored.store() {
         // Si solo se escribió una de las dos claves, volvemos a las anteriores.
         let _ = current.store();
@@ -252,7 +267,7 @@ mod tests {
         let mut profiles = new_vault.list_profiles(&new.vault_key).unwrap();
         profiles.extend(old_vault.list_profiles(&old.vault_key).unwrap());
         let staged = new_vault
-            .stage_replacement(&staged_keys.vault_key, &profiles, &[(doc, b"original".to_vec())], &[])
+            .stage_replacement(&staged_keys.vault_key, &profiles, &[(doc, b"original".to_vec())], &[], &MyProfile::default(), &[])
             .unwrap();
         staged.commit().unwrap();
 

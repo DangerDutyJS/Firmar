@@ -3,8 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, errorMessage, type DocumentFormat } from "../../lib/ipc";
 import { activeProfile, useFirmarStore, type OpenDocument } from "../../store/useFirmarStore";
-import { buildCaption } from "./caption";
-import { CaptionPanel } from "./CaptionPanel";
+import { CaptionPanel, useStamp } from "./CaptionPanel";
 import { DocumentViewer, pageElementId } from "./DocumentViewer";
 import type { PageSize } from "./pdf";
 import { DEFAULT_POSITION, DEFAULT_SIGNATURE_WIDTH, sizedPlacement } from "./placement";
@@ -38,7 +37,6 @@ export function SignerView() {
   const notify = useFirmarStore((s) => s.notify);
   const busy = useFirmarStore((s) => s.busy);
   const setBusy = useFirmarStore((s) => s.setBusy);
-  const captionSettings = useFirmarStore((s) => s.caption);
   const canUndo = useFirmarStore((s) => s.past.length > 0);
   const canRedo = useFirmarStore((s) => s.future.length > 0);
   const undo = useFirmarStore((s) => s.undo);
@@ -53,7 +51,7 @@ export function SignerView() {
   const aspect = profile ? profile.height / profile.width : 0.35;
   const editable = doc !== null && doc.mode !== "readonly";
   const visual = doc !== null && doc.inspection.format !== "binary";
-  const caption = buildCaption(captionSettings);
+  const stamp = useStamp();
   const canSign = profile !== null && busy === null && (!visual || placements.length > 0);
 
   const openPath = useCallback(
@@ -193,7 +191,7 @@ export function SignerView() {
         r?.width ?? DEFAULT_SIGNATURE_WIDTH,
         r?.x ?? DEFAULT_POSITION.x,
         r?.y ?? DEFAULT_POSITION.y,
-        caption,
+        stamp,
       ),
     );
     document.getElementById(pageElementId(page))?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -407,6 +405,7 @@ export function SignerView() {
             <p className="text-slate-300">Arrastra un PDF, un Word, una imagen o cualquier archivo aquí</p>
             <p className="mt-1 text-sm text-slate-500">o usa «Abrir documento». Nada sale de tu equipo.</p>
             <p className="mt-4 text-xs text-slate-600">¿Muchos documentos? Arrastra varios a la vez para firmarlos de una sola vez.</p>
+            <NameReminder />
           </Empty>
         ) : visual ? (
           <DocumentViewer
@@ -417,7 +416,7 @@ export function SignerView() {
             editable={editable}
             signatureUrl={profile?.dataUrl ?? null}
             signatureAspect={aspect}
-            caption={caption}
+            stamp={stamp}
             onPagesReady={setPageSizes}
             onError={onViewerError}
           />
@@ -438,6 +437,29 @@ export function SignerView() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Recuerda poner el nombre público mientras no exista. */
+function NameReminder() {
+  const setView = useFirmarStore((s) => s.setView);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    api
+      .identityGet()
+      .then((me) => setMissing(!me.name))
+      .catch(() => undefined);
+  }, []);
+  if (!missing) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => setView("identity")}
+      className="mt-6 max-w-md rounded-xl border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-left text-sm text-slate-200 hover:bg-brand-500/20"
+    >
+      <span className="font-medium text-brand-400">Pon tu nombre →</span> así quienes reciban tus documentos verán
+      «Firmado por» con tu nombre en lugar de una huella.
+    </button>
   );
 }
 

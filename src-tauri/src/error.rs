@@ -37,6 +37,9 @@ pub enum FirmarError {
 
     #[error("Este documento fue firmado por otra identidad")]
     NotOwner,
+
+    #[error("Firmar Vecipp está bloqueado; desbloquéalo para continuar")]
+    Locked,
 }
 
 impl FirmarError {
@@ -53,6 +56,7 @@ impl FirmarError {
             Self::UnsupportedFormat(_) => "unsupportedFormat",
             Self::Integrity(_) => "integrity",
             Self::NotOwner => "notOwner",
+            Self::Locked => "locked",
         }
     }
 }

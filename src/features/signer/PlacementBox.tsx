@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import type { PlacedSignature } from "../../store/useFirmarStore";
 import type { SignaturePlacement } from "../../lib/ipc";
-import { CAPTION_FONT, captionLines, captionRatio, lineFontSize } from "./caption";
+import { CAPTION_FONT, CAPTION_MAX_WIDTH, captionLines, captionRatio, lineFontSize } from "./caption";
 
 interface Props {
   placement: PlacedSignature;
@@ -14,6 +14,8 @@ interface Props {
   onRemove: () => void;
   /** Antes de mover o redimensionar, para poder deshacerlo. */
   onGestureStart: () => void;
+  /** `false`: solo esquinas (proporción fija) y sin botón de quitar. */
+  freeResize?: boolean;
 }
 
 /** Bordes que mueve cada tirador: n = arriba, s = abajo, e = derecha, w = izquierda. */
@@ -40,7 +42,17 @@ const HANDLES: { handle: Handle; className: string; cursor: string }[] = [
  * (con Mayús se estiran libremente). La guía solo se ve al pasar el ratón o con
  * la firma seleccionada: nunca forma parte del documento.
  */
-export function PlacementBox({ placement, imageUrl, editable, pageWidth, pageHeight, onChange, onRemove, onGestureStart }: Props) {
+export function PlacementBox({
+  placement,
+  imageUrl,
+  editable,
+  pageWidth,
+  pageHeight,
+  onChange,
+  onRemove,
+  onGestureStart,
+  freeResize = true,
+}: Props) {
   const start = useRef<{ x: number; y: number; p: SignaturePlacement; mode: Mode } | null>(null);
 
   const begin = (mode: Mode) => (e: React.PointerEvent) => {
@@ -113,13 +125,14 @@ export function PlacementBox({ placement, imageUrl, editable, pageWidth, pageHei
       <SignaturePreview
         imageUrl={imageUrl}
         caption={placement.caption ?? null}
+        align={placement.captionAlign ?? "center"}
         boxWidth={placement.width * pageWidth}
         boxHeight={placement.height * pageHeight}
       />
       {editable && (
         <>
           <div className="pointer-events-none absolute inset-0 rounded-sm border border-dashed border-transparent group-hover:border-brand-500/70 group-focus:border-brand-500 group-focus:bg-brand-500/10" />
-          <button
+          {freeResize && <button
             type="button"
             aria-label="Quitar firma"
             onPointerDown={(e) => e.stopPropagation()}
@@ -130,8 +143,8 @@ export function PlacementBox({ placement, imageUrl, editable, pageWidth, pageHei
             className="absolute -top-7 right-0 hidden h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow group-hover:flex group-focus:flex"
           >
             ✕
-          </button>
-          {HANDLES.map(({ handle, className, cursor }) => (
+          </button>}
+          {HANDLES.filter((h) => freeResize || h.handle.length === 2).map(({ handle, className, cursor }) => (
             <div
               key={handle}
               onPointerDown={begin(handle)}
@@ -152,11 +165,13 @@ export function PlacementBox({ placement, imageUrl, editable, pageWidth, pageHei
 function SignaturePreview({
   imageUrl,
   caption,
+  align,
   boxWidth,
   boxHeight,
 }: {
   imageUrl: string | null;
   caption: string | null;
+  align: "left" | "center" | "right";
   boxWidth: number;
   boxHeight: number;
 }) {
@@ -174,8 +189,11 @@ function SignaturePreview({
       {lines.map((line, i) => (
         <div
           key={i}
-          className="overflow-visible text-center whitespace-nowrap"
+          className="overflow-visible whitespace-nowrap"
           style={{
+            textAlign: align,
+            // Mismo margen lateral que el estampado: (1 - CAPTION_MAX_WIDTH) / 2.
+            paddingInline: `${((1 - CAPTION_MAX_WIDTH) / 2) * 100}%`,
             height: lineHeight,
             lineHeight: `${lineHeight}px`,
             fontSize: lineFontSize(line, boxWidth, lineHeight),

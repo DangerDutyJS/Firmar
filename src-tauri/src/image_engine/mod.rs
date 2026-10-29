@@ -44,7 +44,7 @@ pub fn stamp(
         }
         let tw = (p.width * w).round().max(1.0) as u32;
         let th = (p.height * h).round().max(1.0) as u32;
-        let signature = art.render(p.caption.as_deref(), f64::from(th) / f64::from(tw))?;
+        let signature = art.render(p.caption.as_deref(), p.caption_align.unwrap_or_default(), f64::from(th) / f64::from(tw))?;
         let resized = imageops::resize(signature.as_ref(), tw, th, FilterType::Lanczos3);
         imageops::overlay(&mut base, &resized, (p.x * w).round() as i64, (p.y * h).round() as i64);
     }
@@ -71,7 +71,7 @@ mod tests {
         base.write_to(&mut Cursor::new(&mut png), ImageFormat::Png).unwrap();
 
         let sig = SignatureArt::new(RgbaImage::from_pixel(10, 10, image::Rgba([0, 0, 0, 255])));
-        let p = SignaturePlacement { page: 0, x: 0.5, y: 0.5, width: 0.2, height: 0.2, caption: None };
+        let p = SignaturePlacement { page: 0, x: 0.5, y: 0.5, width: 0.2, height: 0.2, caption: None, caption_align: None };
         let out = stamp(&png, DocumentFormat::Png, &sig, &[p]).unwrap();
 
         let img = image::load_from_memory(&out).unwrap().into_rgba8();

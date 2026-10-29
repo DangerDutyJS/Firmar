@@ -121,10 +121,17 @@ impl SigningService<'_> {
             Ok(Some((opened, appended_after))) => {
                 let owned = opened.envelope.is_owned_by(&self.keys.identity);
                 let signer_fingerprint = opened.envelope.signer_fingerprint();
-                if appended_after {
-                    SignatureStatus::ModifiedAfterSigning { owned, signer_fingerprint, metadata: opened.metadata }
+                let signer_name = opened.envelope.signer_name.clone();
+                let contact_name = if owned {
+                    None
                 } else {
-                    SignatureStatus::Valid { owned, signer_fingerprint, metadata: opened.metadata }
+                    self.vault.find_contact(&self.keys.vault_key, &opened.envelope.public_key)?.map(|c| c.name)
+                };
+                let metadata = opened.metadata;
+                if appended_after {
+                    SignatureStatus::ModifiedAfterSigning { owned, signer_fingerprint, signer_name, contact_name, metadata }
+                } else {
+                    SignatureStatus::Valid { owned, signer_fingerprint, signer_name, contact_name, metadata }
                 }
             }
             Err(FirmarError::Integrity(reason)) => SignatureStatus::Tampered { reason },
@@ -185,7 +192,9 @@ impl SigningService<'_> {
             signed_at,
             original_sha256: crypto::hex(&crypto::sha256(original)),
         };
-        let envelope = Envelope::seal(&self.keys.vault_key, &self.keys.identity, &content, &metadata)?;
+        let signer_name = self.vault.my_profile(&self.keys.vault_key)?.name;
+        let envelope =
+            Envelope::seal(&self.keys.vault_key, &self.keys.identity, &content, &metadata, signer_name.as_deref())?;
 
         // La copia original va primero: si falla, no dejamos un documento
         // firmado imposible de re-posicionar.
@@ -285,6 +294,8 @@ pub struct PlacementTemplate {
     pub width: f64,
     #[serde(default)]
     pub caption: Option<String>,
+    #[serde(default)]
+    pub caption_align: Option<crate::domain::CaptionAlign>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -333,7 +344,9 @@ impl PlacementTemplate {
         Ok(pages
             .into_iter()
             .map(|(page, w, h)| {
-                fit_placement(page, w / h, signature_aspect, caption_lines, self.width, self.x, self.y, self.caption.clone())
+                let mut p = fit_placement(page, w / h, signature_aspect, caption_lines, self.width, self.x, self.y, self.caption.clone());
+                p.caption_align = self.caption_align;
+                p
             })
             .collect())
     }
@@ -359,7 +372,7 @@ fn fit_placement(
         w *= 0.9 / h;
         h = 0.9;
     }
-    SignaturePlacement { page, x: x.clamp(0.0, 1.0 - w), y: y.clamp(0.0, 1.0 - h), width: w, height: h, caption }
+    SignaturePlacement { page, x: x.clamp(0.0, 1.0 - w), y: y.clamp(0.0, 1.0 - h), width: w, height: h, caption, caption_align: None }
 }
 
 /// `contrato.pdf` → `contrato.firmado.pdf`, o `contrato.firmado (2).pdf` si ya existe.
@@ -423,7 +436,7 @@ mod tests {
     }
 
     fn placement(page: u32) -> SignaturePlacement {
-        SignaturePlacement { page, x: 0.6, y: 0.85, width: 0.3, height: 0.1, caption: None }
+        SignaturePlacement { page, x: 0.6, y: 0.85, width: 0.3, height: 0.1, caption: None, caption_align: None }
     }
 
     #[test]
@@ -485,6 +498,33 @@ mod tests {
     }
 
     #[test]
+    fn signer_name_and_trusted_contacts() {
+        let fx = Fixture::new();
+        fx.vault.set_my_name(&fx.keys.vault_key, Some("Juan Pérez")).unwrap();
+        let input = fx.path("a.pdf");
+        fs::write(&input, pdf_engine::tests::sample_pdf(1)).unwrap();
+        let output = fx.path("b.pdf");
+        fx.service().sign(&input, &output, fx.profile, &[placement(0)]).unwrap();
+
+        // Otra persona, sin la tarjeta de Juan: ve el nombre declarado, no verificado.
+        let dir = tempfile::tempdir().unwrap();
+        let ana = KeyMaterial::ephemeral();
+        let ana_vault = Vault::open(dir.path()).unwrap();
+        let ana_svc = SigningService { keys: &ana, vault: &ana_vault };
+        let SignatureStatus::Valid { signer_name, contact_name, owned: false, .. } = ana_svc.inspect(&output).unwrap().status else {
+            panic!("se esperaba firma válida ajena");
+        };
+        assert_eq!(signer_name.as_deref(), Some("Juan Pérez"));
+        assert!(contact_name.is_none());
+
+        // Con la tarjeta importada, el nombre pasa a ser el del contacto.
+        let card = crate::storage::IdentityCard::issue(&fx.keys.identity, "Juan Pérez").unwrap();
+        ana_vault.add_contact(&ana.vault_key, &card, &ana.identity).unwrap();
+        let SignatureStatus::Valid { contact_name, .. } = ana_svc.inspect(&output).unwrap().status else { panic!() };
+        assert_eq!(contact_name.as_deref(), Some("Juan Pérez"));
+    }
+
+    #[test]
     fn foreign_identity_sees_valid_but_cannot_decrypt() {
         let fx = Fixture::new();
         let input = fx.path("a.pdf");
@@ -509,7 +549,14 @@ mod tests {
         fs::write(&a, pdf_engine::tests::sample_pdf(3)).unwrap();
         fs::write(&b, pdf_engine::tests::sample_pdf(1)).unwrap();
         fs::write(&broken, b"%PDF-1.7 no es un pdf").unwrap();
-        let template = PlacementTemplate { pages: PageTarget::All, x: 0.6, y: 0.8, width: 0.25, caption: Some("Juan".into()) };
+        let template = PlacementTemplate {
+            pages: PageTarget::All,
+            x: 0.6,
+            y: 0.8,
+            width: 0.25,
+            caption: Some("Juan".into()),
+            caption_align: Some(crate::domain::CaptionAlign::Left),
+        };
 
         let mut ticks = Vec::new();
         let results = svc.sign_batch(&[a, b, broken], fx.profile, &template, |i, _| ticks.push(i)).unwrap();
@@ -522,6 +569,7 @@ mod tests {
         };
         assert_eq!(meta.placements.len(), 3, "una firma por página");
         assert!(meta.placements.iter().all(|p| p.caption.as_deref() == Some("Juan")));
+        assert!(meta.placements.iter().all(|p| p.caption_align == Some(crate::domain::CaptionAlign::Left)));
         assert_eq!(fx.vault.list_history(&fx.keys.vault_key).unwrap().len(), 2);
     }
 

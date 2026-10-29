@@ -124,7 +124,7 @@ pub fn stamp(bytes: &[u8], art: &SignatureArt, placements: &[SignaturePlacement]
             (last_slot.clone(), scan.final_section.or(scan.first_section).unwrap_or_default())
         };
         let aspect = (p.height * page.height) / (p.width * page.width);
-        let rel_id = match art.render(p.caption.as_deref(), aspect)? {
+        let rel_id = match art.render(p.caption.as_deref(), p.caption_align.unwrap_or_default(), aspect)? {
             Cow::Borrowed(img) => match media.shared.clone() {
                 Some(id) => id,
                 None => {
@@ -574,8 +574,8 @@ pub(crate) mod tests {
     fn stamps_first_and_last_page() {
         let docx = sample_docx(BODY);
         let placements = [
-            SignaturePlacement { page: FIRST_PAGE, x: 0.1, y: 0.1, width: 0.2, height: 0.05, caption: None },
-            SignaturePlacement { page: LAST_PAGE, x: 0.6, y: 0.8, width: 0.3, height: 0.075, caption: None },
+            SignaturePlacement { page: FIRST_PAGE, x: 0.1, y: 0.1, width: 0.2, height: 0.05, caption: None, caption_align: None },
+            SignaturePlacement { page: LAST_PAGE, x: 0.6, y: 0.8, width: 0.3, height: 0.075, caption: None, caption_align: None },
         ];
         let out = stamp(&docx, &signature_png(), &placements).unwrap();
 
@@ -605,7 +605,7 @@ pub(crate) mod tests {
     #[test]
     fn captioned_signature_gets_its_own_image() {
         let docx = sample_docx(BODY);
-        let plain = SignaturePlacement { page: FIRST_PAGE, x: 0.1, y: 0.1, width: 0.2, height: 0.05, caption: None };
+        let plain = SignaturePlacement { page: FIRST_PAGE, x: 0.1, y: 0.1, width: 0.2, height: 0.05, caption: None, caption_align: None };
         let text = SignaturePlacement { page: LAST_PAGE, caption: Some("Juan".into()), height: 0.1, ..plain.clone() };
         let out = stamp(&docx, &signature_png(), &[plain, text]).unwrap();
         let z = ZipArchive::new(Cursor::new(out.as_slice())).unwrap();
@@ -618,7 +618,7 @@ pub(crate) mod tests {
     #[test]
     fn handles_single_empty_paragraph() {
         let docx = sample_docx(r#"<w:p w:rsidR="00AB"/><w:sectPr/>"#);
-        let p = SignaturePlacement { page: LAST_PAGE, x: 0.0, y: 0.0, width: 0.5, height: 0.1, caption: None };
+        let p = SignaturePlacement { page: LAST_PAGE, x: 0.0, y: 0.0, width: 0.5, height: 0.1, caption: None, caption_align: None };
         let out = stamp(&docx, &signature_png(), &[p.clone(), SignaturePlacement { page: FIRST_PAGE, ..p }]).unwrap();
         let doc = read(&out, "word/document.xml");
         assert!(doc.contains(r#"<w:p w:rsidR="00AB"><w:r "#));
@@ -629,7 +629,7 @@ pub(crate) mod tests {
 
     #[test]
     fn rejects_other_pages_and_bad_zip() {
-        let p = SignaturePlacement { page: 2, x: 0.0, y: 0.0, width: 0.1, height: 0.1, caption: None };
+        let p = SignaturePlacement { page: 2, x: 0.0, y: 0.0, width: 0.1, height: 0.1, caption: None, caption_align: None };
         assert!(stamp(&sample_docx(BODY), &signature_png(), &[p]).is_err());
         assert!(layout(b"PK\x03\x04 no es zip word/document.xml").is_err());
         assert!(is_docx(&sample_docx(BODY)));

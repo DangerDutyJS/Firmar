@@ -1,5 +1,5 @@
 import type { SignaturePlacement } from "../../lib/ipc";
-import { captionRatio } from "./caption";
+import { captionRatio, type CaptionAlign } from "./caption";
 import type { PageSize } from "./pdf";
 
 export const DEFAULT_SIGNATURE_WIDTH = 0.26;
@@ -20,8 +20,9 @@ export function sizedPlacement(
   width: number,
   x: number,
   y: number,
-  caption: string | null = null,
+  stamp: { caption: string | null; captionAlign: CaptionAlign } = { caption: null, captionAlign: "center" },
 ): SignaturePlacement {
+  const { caption, captionAlign } = stamp;
   let w = clamp(width, 0.03, 0.9);
   // Fracción de alto = fracción de ancho × (alto/ancho de la firma) × (ancho/alto de la página).
   let h = (w * signatureAspect * (pageSize.width / pageSize.height)) / (1 - captionRatio(caption));
@@ -29,7 +30,7 @@ export function sizedPlacement(
     w *= 0.9 / h;
     h = 0.9;
   }
-  return { page, width: w, height: h, x: clamp(x, 0, 1 - w), y: clamp(y, 0, 1 - h), caption };
+  return { page, width: w, height: h, x: clamp(x, 0, 1 - w), y: clamp(y, 0, 1 - h), caption, captionAlign };
 }
 
 /**

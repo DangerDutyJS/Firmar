@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { api, errorMessage, type BackupSummary } from "../../lib/ipc";
 import { useFirmarStore } from "../../store/useFirmarStore";
 import { WipeCard } from "../../legal/LegalViews";
+import { LockSettings } from "../lock/AppLock";
 
 const MIN_PASSWORD = 10;
 const BACKUP_EXTENSION = "firmarbackup";
@@ -12,13 +13,14 @@ export function SecurityView() {
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col gap-6 overflow-y-auto p-6">
       <header>
-        <h2 className="text-lg font-semibold text-white">Copia de seguridad</h2>
+        <h2 className="text-lg font-semibold text-white">Seguridad y copia de seguridad</h2>
         <p className="mt-1 max-w-2xl text-sm text-slate-400">
           Tu identidad de firma vive en el llavero de este equipo. Si reinstalas Windows o cambias de computadora sin
           una copia, perderás tus firmas guardadas y no podrás volver a gestionar los documentos que firmaste.
         </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-2">
+        <LockSettings />
         <ExportCard />
         <RestoreCard />
         <WipeCard />

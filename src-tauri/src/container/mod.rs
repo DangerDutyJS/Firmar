@@ -29,8 +29,11 @@ use crate::error::{FirmarError, FirmarResult};
 
 pub const MARKER: &[u8] = b"\n%X-Firmar-VaultPayload:";
 pub const SIDECAR_EXTENSION: &str = "firmar";
-const ENVELOPE_VERSION: u32 = 1;
-const SIGNATURE_DOMAIN: &[u8] = b"FIRMAR/envelope/v1\0";
+/// v1: Firmar 0.1.0. v2: añade el nombre del firmante, cubierto por la firma.
+const ENVELOPE_VERSION: u32 = 2;
+const SIGNATURE_DOMAIN_V1: &[u8] = b"FIRMAR/envelope/v1\0";
+const SIGNATURE_DOMAIN_V2: &[u8] = b"FIRMAR/envelope/v2\0";
+pub const MAX_SIGNER_NAME_CHARS: usize = 80;
 const PAYLOAD_AAD_DOMAIN: &[u8] = b"firmar/payload/v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +50,10 @@ pub struct Envelope {
     pub ciphertext: Vec<u8>,
     #[serde(with = "crate::domain::b64")]
     pub signature: Vec<u8>,
+    /// Nombre que el firmante se puso (público y firmado, pero no verificado
+    /// por terceros: para eso están los contactos de confianza).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer_name: Option<String>,
 }
 
 impl Envelope {
@@ -55,13 +62,23 @@ impl Envelope {
         identity: &Identity,
         content: &[u8],
         metadata: &FirmarMetadataPayload,
+        signer_name: Option<&str>,
     ) -> FirmarResult<Self> {
+        let signer_name = normalize_signer_name(signer_name)?;
         let digest = crypto::sha256(content);
         let plain = zeroize::Zeroizing::new(serde_json::to_vec(metadata)?);
         let sealed = vault_key.seal(&plain, &payload_aad(metadata.document_id, &digest))?;
-        let message = signed_message(metadata.document_id, &digest, &sealed.nonce, &sealed.ciphertext);
+        let message = signed_message(
+            ENVELOPE_VERSION,
+            metadata.document_id,
+            &digest,
+            &sealed.nonce,
+            &sealed.ciphertext,
+            signer_name.as_deref(),
+        );
         Ok(Self {
             v: ENVELOPE_VERSION,
+            signer_name,
             document_id: metadata.document_id,
             content_sha256: crypto::hex(&digest),
             public_key: identity.public_key().to_vec(),
@@ -73,8 +90,11 @@ impl Envelope {
 
     /// Verifica que el sobre corresponde a `content` y que la firma es auténtica.
     pub fn verify(&self, content: &[u8]) -> FirmarResult<()> {
-        if self.v != ENVELOPE_VERSION {
+        if !(1..=ENVELOPE_VERSION).contains(&self.v) {
             return Err(FirmarError::Integrity(format!("versión de sobre desconocida: {}", self.v)));
+        }
+        if self.v == 1 && self.signer_name.is_some() {
+            return Err(FirmarError::Integrity("el sobre v1 no admite nombre de firmante".into()));
         }
         let digest = crypto::sha256(content);
         if crypto::hex(&digest) != self.content_sha256 {
@@ -82,7 +102,14 @@ impl Envelope {
                 "el contenido del documento cambió después de firmarlo".into(),
             ));
         }
-        let message = signed_message(self.document_id, &digest, &self.nonce, &self.ciphertext);
+        let message = signed_message(
+            self.v,
+            self.document_id,
+            &digest,
+            &self.nonce,
+            &self.ciphertext,
+            self.signer_name.as_deref(),
+        );
         crypto::verify(&self.public_key, &message, &self.signature)
     }
 
@@ -133,15 +160,39 @@ fn payload_aad(document_id: Uuid, digest: &[u8; 32]) -> Vec<u8> {
     aad
 }
 
-fn signed_message(document_id: Uuid, digest: &[u8; 32], nonce: &[u8], ciphertext: &[u8]) -> Vec<u8> {
-    let mut m = Vec::with_capacity(SIGNATURE_DOMAIN.len() + 16 + 32 + nonce.len() + ciphertext.len() + 8);
-    m.extend_from_slice(SIGNATURE_DOMAIN);
+/// Nombre de firmante válido: sin saltos de línea y de longitud razonable.
+pub fn normalize_signer_name(name: Option<&str>) -> FirmarResult<Option<String>> {
+    let Some(name) = name.map(str::trim).filter(|n| !n.is_empty()) else { return Ok(None) };
+    if name.chars().count() > MAX_SIGNER_NAME_CHARS || name.chars().any(char::is_control) {
+        return Err(FirmarError::InvalidInput(format!(
+            "el nombre debe tener como mucho {MAX_SIGNER_NAME_CHARS} caracteres, sin saltos de línea"
+        )));
+    }
+    Ok(Some(name.to_owned()))
+}
+
+fn signed_message(
+    version: u32,
+    document_id: Uuid,
+    digest: &[u8; 32],
+    nonce: &[u8],
+    ciphertext: &[u8],
+    signer_name: Option<&str>,
+) -> Vec<u8> {
+    let domain = if version == 1 { SIGNATURE_DOMAIN_V1 } else { SIGNATURE_DOMAIN_V2 };
+    let mut m = Vec::with_capacity(domain.len() + 16 + 32 + nonce.len() + ciphertext.len() + 96);
+    m.extend_from_slice(domain);
     m.extend_from_slice(document_id.as_bytes());
     m.extend_from_slice(digest);
     m.extend_from_slice(&(nonce.len() as u32).to_be_bytes());
     m.extend_from_slice(nonce);
     m.extend_from_slice(&(ciphertext.len() as u32).to_be_bytes());
     m.extend_from_slice(ciphertext);
+    if version >= 2 {
+        let name = signer_name.unwrap_or("").as_bytes();
+        m.extend_from_slice(&(name.len() as u32).to_be_bytes());
+        m.extend_from_slice(name);
+    }
     m
 }
 
@@ -285,7 +336,7 @@ mod tests {
             profile_name: "Firma".into(),
             source_file_name: "a.png".into(),
             format: DocumentFormat::Png,
-            placements: vec![SignaturePlacement { page: 0, x: 0.1, y: 0.1, width: 0.2, height: 0.1, caption: None }],
+            placements: vec![SignaturePlacement { page: 0, x: 0.1, y: 0.1, width: 0.2, height: 0.1, caption: None, caption_align: None }],
             signed_at: Utc::now(),
             original_sha256: "00".into(),
         }
@@ -296,7 +347,7 @@ mod tests {
         let keys = KeyMaterial::ephemeral();
         let content = b"\x89PNG fake image bytes".to_vec();
         let meta = metadata();
-        let env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &meta).unwrap();
+        let env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &meta, None).unwrap();
         let file = embed(&content, &env, DocumentFormat::Png).unwrap();
 
         let ex = extract(&file, DocumentFormat::Png).unwrap();
@@ -316,7 +367,7 @@ mod tests {
     fn detects_content_tampering_and_appends() {
         let keys = KeyMaterial::ephemeral();
         let content = b"contenido original".to_vec();
-        let env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata()).unwrap();
+        let env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata(), None).unwrap();
         let mut file = embed(&content, &env, DocumentFormat::Binary).unwrap();
 
         file[0] ^= 1;
@@ -331,11 +382,52 @@ mod tests {
     }
 
     #[test]
+    fn signer_name_is_signed_and_cannot_be_swapped() {
+        let keys = KeyMaterial::ephemeral();
+        let content = b"doc".to_vec();
+        let mut env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata(), Some(" Juan Pérez ")).unwrap();
+        assert_eq!(env.signer_name.as_deref(), Some("Juan Pérez"));
+        env.verify(&content).unwrap();
+
+        env.signer_name = Some("Otra Persona".into());
+        assert!(env.verify(&content).is_err(), "cambiar el nombre invalida la firma");
+        env.signer_name = None;
+        assert!(env.verify(&content).is_err(), "quitar el nombre también");
+
+        assert!(Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata(), Some("a\nb")).is_err());
+    }
+
+    #[test]
+    fn version_1_envelopes_still_verify() {
+        // Sobre tal como lo producía Firmar 0.1.0.
+        let keys = KeyMaterial::ephemeral();
+        let content = b"documento antiguo".to_vec();
+        let meta = metadata();
+        let digest = crypto::sha256(&content);
+        let sealed = keys.vault_key.seal(&serde_json::to_vec(&meta).unwrap(), &payload_aad(meta.document_id, &digest)).unwrap();
+        let message = signed_message(1, meta.document_id, &digest, &sealed.nonce, &sealed.ciphertext, None);
+        let v1 = Envelope {
+            v: 1,
+            document_id: meta.document_id,
+            content_sha256: crypto::hex(&digest),
+            public_key: keys.identity.public_key().to_vec(),
+            nonce: sealed.nonce.to_vec(),
+            ciphertext: sealed.ciphertext,
+            signature: keys.identity.sign(&message).to_vec(),
+            signer_name: None,
+        };
+        let json = serde_json::to_string(&v1).unwrap();
+        assert!(!json.contains("signerName"), "el JSON v1 no cambia");
+        v1.verify(&content).unwrap();
+        assert_eq!(v1.decrypt(&keys.vault_key, &content).unwrap().document_id, meta.document_id);
+    }
+
+    #[test]
     fn forged_signature_is_rejected() {
         let keys = KeyMaterial::ephemeral();
         let attacker = KeyMaterial::ephemeral();
         let content = b"doc".to_vec();
-        let mut env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata()).unwrap();
+        let mut env = Envelope::seal(&keys.vault_key, &keys.identity, &content, &metadata(), None).unwrap();
         env.public_key = attacker.identity.public_key().to_vec();
         assert!(env.verify(&content).is_err());
     }
@@ -344,7 +436,7 @@ mod tests {
     fn docx_envelope_lives_in_zip_comment() {
         let keys = KeyMaterial::ephemeral();
         let docx = crate::docx_engine::tests::sample_docx("<w:p/>");
-        let env = Envelope::seal(&keys.vault_key, &keys.identity, &docx, &metadata()).unwrap();
+        let env = Envelope::seal(&keys.vault_key, &keys.identity, &docx, &metadata(), None).unwrap();
         let file = embed(&docx, &env, DocumentFormat::Docx).unwrap();
 
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(file.as_slice())).unwrap();
@@ -363,7 +455,7 @@ mod tests {
     fn pdf_suffix_repeats_startxref() {
         let pdf = b"%PDF-1.7\n...xref...\nstartxref\n1234\n%%EOF\n".to_vec();
         let keys = KeyMaterial::ephemeral();
-        let env = Envelope::seal(&keys.vault_key, &keys.identity, &pdf, &metadata()).unwrap();
+        let env = Envelope::seal(&keys.vault_key, &keys.identity, &pdf, &metadata(), None).unwrap();
         let file = embed(&pdf, &env, DocumentFormat::Pdf).unwrap();
         assert!(file.ends_with(b"startxref\n1234\n%%EOF\n"));
         assert!(!extract(&file, DocumentFormat::Pdf).unwrap().appended_after);

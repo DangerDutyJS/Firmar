@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, errorMessage, type BatchItem, type BatchProgress, type PageTarget } from "../../lib/ipc";
 import { activeProfile, useFirmarStore } from "../../store/useFirmarStore";
-import { buildCaption, captionRatio } from "../signer/caption";
-import { CaptionPanel } from "../signer/CaptionPanel";
+import { CaptionPanel, useStamp } from "../signer/CaptionPanel";
+import { PositionPicker } from "./PositionPicker";
 import { DEFAULT_POSITION, DEFAULT_SIGNATURE_WIDTH } from "../signer/placement";
 
 const PAGE_OPTIONS: { value: PageTarget; label: string; hint: string }[] = [
@@ -30,7 +30,6 @@ export function BatchView() {
   const profile = useFirmarStore(activeProfile);
   const setActiveProfile = useFirmarStore((s) => s.setActiveProfile);
   const remembered = useFirmarStore((s) => s.remembered);
-  const captionSettings = useFirmarStore((s) => s.caption);
   const notify = useFirmarStore((s) => s.notify);
   const requestOpen = useFirmarStore((s) => s.requestOpen);
 
@@ -45,7 +44,8 @@ export function BatchView() {
   const [dragging, setDragging] = useState(false);
   const running = progress !== null;
 
-  const caption = buildCaption(captionSettings);
+  const stamp = useStamp();
+  const caption = stamp.caption;
   const add = (paths: string[]) => {
     setResults(null);
     setQueue([...useFirmarStore.getState().batchQueue, ...paths]);
@@ -85,7 +85,14 @@ export function BatchView() {
     setProgress({ done: 0, total: queue.length, current: "" });
     const unlisten = await listen<BatchProgress>("batch-progress", (e) => setProgress(e.payload));
     try {
-      const items = await api.documentSignBatch(queue, profile.id, { pages, x: position.x, y: position.y, width, caption });
+      const items = await api.documentSignBatch(queue, profile.id, {
+        pages,
+        x: position.x,
+        y: position.y,
+        width,
+        caption,
+        captionAlign: stamp.captionAlign,
+      });
       setResults(items);
       const ok = items.filter((i) => i.outputPath).length;
       notify(ok === items.length ? "success" : "info", `${ok} de ${items.length} documentos firmados`);
@@ -97,13 +104,6 @@ export function BatchView() {
       setProgress(null);
     }
   };
-
-  // Vista previa en una página A4 vertical: aproximación para elegir el sitio.
-  const preview = useMemo(() => {
-    const aspect = profile ? profile.height / profile.width : 0.35;
-    const h = Math.min(0.9, (width * aspect * (210 / 297)) / (1 - captionRatio(caption)));
-    return { x: Math.min(position.x, 1 - width), y: Math.min(position.y, 1 - h), w: width, h };
-  }, [profile, width, position, caption]);
 
   return (
     <div className="relative flex h-full min-h-0 gap-6 p-6">
@@ -188,7 +188,7 @@ export function BatchView() {
         )}
       </section>
 
-      <aside className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-ink-800 bg-ink-900 p-5 text-sm">
+      <aside className="flex w-[420px] shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-ink-800 bg-ink-900 p-5 text-sm">
         <label className="flex flex-col gap-1 text-slate-400">
           Firma
           <select
@@ -218,17 +218,25 @@ export function BatchView() {
         </fieldset>
 
         <div className="space-y-2">
-          <p className="text-slate-400">Posición</p>
-          <div className="flex gap-3">
-            <div className="relative aspect-[210/297] w-28 shrink-0 bg-white shadow">
-              <div
-                className="absolute rounded-sm bg-brand-500/30 ring-1 ring-brand-500"
-                style={{ left: `${preview.x * 100}%`, top: `${preview.y * 100}%`, width: `${preview.w * 100}%`, height: `${preview.h * 100}%` }}
-              >
-                {profile && <img src={profile.dataUrl} alt="" className="h-full w-full object-contain" />}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
+          <p className="text-slate-400">
+            Posición <span className="text-xs text-slate-500">· pasa el ratón para agrandar, haz clic o arrastra la firma</span>
+          </p>
+          <PositionPicker
+            samplePath={queue[0] ?? null}
+            pages={pages}
+            x={position.x}
+            y={position.y}
+            width={width}
+            signatureUrl={profile?.dataUrl ?? null}
+            signatureAspect={profile ? profile.height / profile.width : 0.35}
+            stamp={stamp}
+            onChange={(next) => {
+              setPosition({ x: next.x, y: next.y });
+              setWidth(next.width);
+            }}
+          />
+          <div className="flex flex-wrap justify-center gap-1">
+            <div className="contents">
               {PRESETS.map((p) => (
                 <button
                   key={p.label}
@@ -267,10 +275,7 @@ export function BatchView() {
           </label>
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-slate-400">{caption ? caption.split("\n").join(" · ") : "Sin texto bajo la firma"}</span>
-          <CaptionPanel />
-        </div>
+        <CaptionPanel inline summary={caption ? caption.split("\n").join(" · ") : "Sin texto bajo la firma"} />
 
         <button
           type="button"

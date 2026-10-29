@@ -1,6 +1,8 @@
 //! Comandos IPC expuestos al frontend. Todo el trabajo pesado (E/S, cifrado,
 //! PDF) corre en el pool bloqueante para no congelar la ventana.
 
+pub mod identity;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -20,7 +22,7 @@ use crate::error::{FirmarError, FirmarResult};
 use crate::services::{self, BatchItem, PlacementTemplate, SigningService};
 use crate::storage::HistoryEntry;
 use crate::storage::backup::{self, BackupSummary};
-use crate::storage::{KeyMaterial, Vault};
+use crate::storage::{AppLock, KeyMaterial, Vault};
 
 const MAX_DOCUMENT_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -34,14 +36,19 @@ pub struct AppState {
     /// Archivo con el que se abrió la app («Firmar con Firmar» del Explorador).
     launch_file: Mutex<Option<PathBuf>>,
     legal: LegalStore,
+    lock: Mutex<AppLock>,
 }
 
 impl AppState {
     pub fn new(vault: Vault, legal: LegalStore) -> Self {
-        Self { vault, keys: Mutex::new(None), write_lock: Mutex::new(()), launch_file: Mutex::new(None), legal }
+        let lock = Mutex::new(AppLock::load(vault.root()));
+        Self { vault, keys: Mutex::new(None), write_lock: Mutex::new(()), launch_file: Mutex::new(None), legal, lock }
     }
 
+    /// Claves de la identidad. Falla con `Locked` si la app está bloqueada:
+    /// así ningún comando puede tocar la bóveda sin desbloquear.
     fn keys(&self) -> FirmarResult<Arc<KeyMaterial>> {
+        self.lock.lock().map_err(|_| poisoned())?.ensure_unlocked()?;
         let mut guard = self.keys.lock().map_err(|_| poisoned())?;
         if let Some(keys) = guard.as_ref() {
             return Ok(keys.clone());
@@ -52,13 +59,13 @@ impl AppState {
     }
 }
 
-fn poisoned() -> FirmarError {
+pub(crate) fn poisoned() -> FirmarError {
     FirmarError::Crypto("estado interno bloqueado por un fallo previo".into())
 }
 
-type Shared<'a> = State<'a, Arc<AppState>>;
+pub(crate) type Shared<'a> = State<'a, Arc<AppState>>;
 
-async fn blocking<T, F>(state: &Shared<'_>, f: F) -> FirmarResult<T>
+pub(crate) async fn blocking<T, F>(state: &Shared<'_>, f: F) -> FirmarResult<T>
 where
     T: Send + 'static,
     F: FnOnce(&AppState) -> FirmarResult<T> + Send + 'static,
@@ -307,10 +314,12 @@ pub async fn data_wipe(state: Shared<'_>, confirmation: String) -> FirmarResult<
         return Err(FirmarError::InvalidInput(format!("escribe {WIPE_CONFIRMATION} para confirmar")));
     }
     blocking(&state, |s| {
+        s.lock.lock().map_err(|_| poisoned())?.ensure_unlocked()?;
         let _w = s.write_lock.lock().map_err(|_| poisoned())?;
         s.vault.wipe()?;
         KeyMaterial::delete_from_keyring()?;
         *s.keys.lock().map_err(|_| poisoned())? = None;
+        s.lock.lock().map_err(|_| poisoned())?.reset();
         Ok(())
     })
     .await
@@ -376,7 +385,7 @@ pub fn open_path(app: tauri::AppHandle, path: PathBuf) -> FirmarResult<()> {
         .map_err(|e| FirmarError::Io(std::io::Error::other(e.to_string())))
 }
 
-fn check_size(path: &std::path::Path) -> FirmarResult<()> {
+pub(crate) fn check_size(path: &std::path::Path) -> FirmarResult<()> {
     let meta = std::fs::metadata(path)?;
     if !meta.is_file() {
         return Err(FirmarError::InvalidInput("la ruta no es un archivo".into()));

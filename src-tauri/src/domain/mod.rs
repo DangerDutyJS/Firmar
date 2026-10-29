@@ -33,9 +33,21 @@ pub struct SignaturePlacement {
     pub y: f64,
     pub width: f64,
     pub height: f64,
-    /// Texto bajo la firma (nombre, fecha…), hasta 3 líneas.
+    /// Texto bajo la firma (nombre, fecha…), hasta 5 líneas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caption: Option<String>,
+    /// Alineación del texto; por defecto, centrado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caption_align: Option<CaptionAlign>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CaptionAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
 }
 
 impl SignaturePlacement {
@@ -129,6 +141,10 @@ pub enum SignatureStatus {
     Valid {
         owned: bool,
         signer_fingerprint: String,
+        /// Nombre que el firmante declaró en el sello (no verificado).
+        signer_name: Option<String>,
+        /// Nombre del contacto de confianza con esa clave, si lo es.
+        contact_name: Option<String>,
         metadata: Option<FirmarMetadataPayload>,
     },
     /// El contenido firmado sigue intacto pero alguien añadió datos después
@@ -136,6 +152,8 @@ pub enum SignatureStatus {
     ModifiedAfterSigning {
         owned: bool,
         signer_fingerprint: String,
+        signer_name: Option<String>,
+        contact_name: Option<String>,
         metadata: Option<FirmarMetadataPayload>,
     },
     /// El contenido o la firma criptográfica no coinciden.
@@ -172,7 +190,7 @@ mod tests {
     use super::*;
 
     fn placement(x: f64, y: f64, w: f64, h: f64) -> SignaturePlacement {
-        SignaturePlacement { page: 0, x, y, width: w, height: h, caption: None }
+        SignaturePlacement { page: 0, x, y, width: w, height: h, caption: None, caption_align: None }
     }
 
     #[test]

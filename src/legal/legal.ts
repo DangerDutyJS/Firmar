@@ -3,7 +3,7 @@
  * `TERMS_VERSION`: la app volverá a pedir la aceptación.
  */
 
-export const TERMS_VERSION = "2026-10-29";
+export const TERMS_VERSION = "2026-10-29.2";
 
 export const LEGAL_ENTITY = {
   company: "Vecipp Soluciones",
@@ -46,6 +46,7 @@ export const TERMS: LegalSection[] = [
   {
     title: "4. Tus responsabilidades",
     paragraphs: [
+      "El nombre que pones en «Identidad» lo declaras tú y Firmar Vecipp no lo verifica. Un documento solo aparece como «contacto verificado» para quien haya importado la tarjeta de identidad del firmante.",
       "Usa Firmar Vecipp solo con tu propia firma y en documentos que tengas derecho a firmar. Suplantar la firma de otra persona puede constituir delito (por ejemplo, falsedad en documento privado, artículo 289 del Código Penal colombiano).",
       "Tus claves, firmas y copias de los documentos se guardan únicamente en tu equipo. Eres responsable de proteger el acceso a tu computador y de crear y conservar copias de seguridad. Si pierdes el equipo o la contraseña de tu copia de seguridad, nadie, incluido el responsable de Firmar Vecipp, podrá recuperarlas.",
     ],
@@ -92,6 +93,7 @@ export const PRIVACY: LegalSection[] = [
     title: "3. Para qué se usan",
     paragraphs: [
       "Únicamente para que puedas firmar documentos, verificar su integridad, re-posicionar tus firmas y llevar tu propio historial. No se usan con fines comerciales, publicitarios ni de elaboración de perfiles.",
+      "Si escribes tu nombre en «Identidad», ese nombre y tu clave pública viajan dentro del sello de cada documento que firmes y en la tarjeta de identidad que decidas compartir, y los verá quien los reciba. Los contactos que importes se guardan cifrados solo en tu equipo.",
       "Si los documentos que firmas contienen datos personales de otras personas, tú eres el responsable de su tratamiento.",
     ],
   },

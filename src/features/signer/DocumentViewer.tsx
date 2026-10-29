@@ -15,8 +15,8 @@ interface Props {
   signatureUrl: string | null;
   /** alto/ancho de la imagen de firma activa. */
   signatureAspect: number;
-  /** Texto que llevarán las firmas nuevas. */
-  caption: string | null;
+  /** Texto (y su alineación) que llevarán las firmas nuevas. */
+  stamp: { caption: string | null; captionAlign: "left" | "center" | "right" };
   /** Tamaño de cada página, en cuanto se conoce. */
   onPagesReady: (sizes: PageSize[]) => void;
   onError: (message: string) => void;
@@ -148,7 +148,7 @@ interface PageProps extends Props {
   docxPage: DocxPageSetup | null;
 }
 
-function Page({ index, size, pdf, imageUrl, docxPage, docxLayout, zoom, editable, signatureUrl, signatureAspect, caption }: PageProps) {
+function Page({ index, size, pdf, imageUrl, docxPage, docxLayout, zoom, editable, signatureUrl, signatureAspect, stamp }: PageProps) {
   const placements = useFirmarStore((s) => s.placements);
   const addPlacement = useFirmarStore((s) => s.addPlacement);
   const updatePlacement = useFirmarStore((s) => s.updatePlacement);
@@ -164,11 +164,11 @@ function Page({ index, size, pdf, imageUrl, docxPage, docxLayout, zoom, editable
   const place = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editable) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const probe = sizedPlacement(index, size, signatureAspect, rememberedWidth, 0, 0, caption);
+    const probe = sizedPlacement(index, size, signatureAspect, rememberedWidth, 0, 0, stamp);
     const cx = (e.clientX - rect.left) / rect.width;
     const cy = (e.clientY - rect.top) / rect.height;
     addPlacement(
-      sizedPlacement(index, size, signatureAspect, probe.width, cx - probe.width / 2, cy - probe.height / 2, caption),
+      sizedPlacement(index, size, signatureAspect, probe.width, cx - probe.width / 2, cy - probe.height / 2, stamp),
     );
   };
 
@@ -208,7 +208,7 @@ function Page({ index, size, pdf, imageUrl, docxPage, docxLayout, zoom, editable
 }
 
 /** Renderiza una página solo cuando entra en pantalla, a la densidad de píxeles real. */
-function PdfCanvas({ pdf, pageNumber, width, height }: { pdf: PDFDocumentProxy; pageNumber: number; width: number; height: number }) {
+export function PdfCanvas({ pdf, pageNumber, width, height }: { pdf: PDFDocumentProxy; pageNumber: number; width: number; height: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [visible, setVisible] = useState(false);
 

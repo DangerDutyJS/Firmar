@@ -14,6 +14,7 @@ use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use image::imageops::{self, FilterType};
 use image::{Rgba, RgbaImage};
 
+use crate::domain::CaptionAlign;
 use crate::error::{FirmarError, FirmarResult};
 
 pub const CAPTION_LINE_RATIO: f64 = 0.17;
@@ -21,7 +22,7 @@ pub const CAPTION_MAX_RATIO: f64 = 0.5;
 pub const CAPTION_FONT_RATIO: f32 = 0.78;
 /// Margen horizontal para el texto (fracción del ancho).
 pub const CAPTION_MAX_WIDTH: f32 = 0.96;
-pub const MAX_CAPTION_LINES: usize = 3;
+pub const MAX_CAPTION_LINES: usize = 5;
 pub const MAX_CAPTION_LINE_CHARS: usize = 80;
 
 const TEXT_COLOR: [u8; 3] = [31, 41, 55];
@@ -44,7 +45,7 @@ impl SignatureArt {
 
     /// Imagen para un rectángulo de proporción `aspect` (alto / ancho). Sin
     /// texto devuelve la firma tal cual, que se estira al rectángulo.
-    pub fn render(&self, caption: Option<&str>, aspect: f64) -> FirmarResult<Cow<'_, RgbaImage>> {
+    pub fn render(&self, caption: Option<&str>, align: CaptionAlign, aspect: f64) -> FirmarResult<Cow<'_, RgbaImage>> {
         let lines = caption_lines(caption)?;
         if lines.is_empty() {
             return Ok(Cow::Borrowed(&self.signature));
@@ -70,13 +71,13 @@ impl SignatureArt {
 
         for (i, line) in lines.iter().enumerate() {
             let top = f64::from(sig_h) + line_h * i as f64;
-            draw_line(&mut canvas, line, top as f32, line_h as f32);
+            draw_line(&mut canvas, line, align, top as f32, line_h as f32);
         }
         Ok(Cow::Owned(canvas))
     }
 }
 
-/// Normaliza y valida el texto: como mucho 3 líneas de 80 caracteres.
+/// Normaliza y valida el texto: como mucho 5 líneas de 80 caracteres.
 pub fn caption_lines(caption: Option<&str>) -> FirmarResult<Vec<String>> {
     let lines: Vec<String> = caption
         .unwrap_or("")
@@ -95,7 +96,7 @@ pub fn caption_lines(caption: Option<&str>) -> FirmarResult<Vec<String>> {
     Ok(lines)
 }
 
-fn draw_line(canvas: &mut RgbaImage, text: &str, top: f32, line_h: f32) {
+fn draw_line(canvas: &mut RgbaImage, text: &str, align: CaptionAlign, top: f32, line_h: f32) {
     let font = &*FONT;
     let mut px = line_h * CAPTION_FONT_RATIO;
     let width = text_width(text, px);
@@ -107,7 +108,14 @@ fn draw_line(canvas: &mut RgbaImage, text: &str, top: f32, line_h: f32) {
     // Igual que CSS: el área ascendente+descendente centrada en la línea.
     let content = scaled.ascent() - scaled.descent();
     let baseline = top + (line_h - content) / 2.0 + scaled.ascent();
-    let mut x = (canvas.width() as f32 - text_width(text, px)) / 2.0;
+    // Mismo margen lateral que el visor: (1 - CAPTION_MAX_WIDTH) / 2 a cada lado.
+    let margin = canvas.width() as f32 * (1.0 - CAPTION_MAX_WIDTH) / 2.0;
+    let free = canvas.width() as f32 - text_width(text, px);
+    let mut x = match align {
+        CaptionAlign::Left => margin,
+        CaptionAlign::Center => free / 2.0,
+        CaptionAlign::Right => free - margin,
+    };
 
     let mut previous = None;
     for c in text.chars() {
@@ -161,13 +169,13 @@ mod tests {
     #[test]
     fn without_caption_returns_signature_untouched() {
         let a = art();
-        assert!(matches!(a.render(None, 0.4).unwrap(), Cow::Borrowed(_)));
-        assert!(matches!(a.render(Some("  \n "), 0.4).unwrap(), Cow::Borrowed(_)));
+        assert!(matches!(a.render(None, CaptionAlign::Center, 0.4).unwrap(), Cow::Borrowed(_)));
+        assert!(matches!(a.render(Some("  \n "), CaptionAlign::Center, 0.4).unwrap(), Cow::Borrowed(_)));
     }
 
     #[test]
     fn caption_is_drawn_below_signature() {
-        let img = art().render(Some("Juan Pérez\n28/10/2026"), 0.6).unwrap().into_owned();
+        let img = art().render(Some("Juan Pérez\n28/10/2026"), CaptionAlign::Center, 0.6).unwrap().into_owned();
         let (w, h) = img.dimensions();
         assert_eq!(w, MIN_RENDER_WIDTH);
         assert_eq!(h, (f64::from(w) * 0.6).round() as u32);
@@ -180,14 +188,28 @@ mod tests {
     }
 
     #[test]
+    fn alignment_moves_text() {
+        let ink_x = |align| {
+            let img = art().render(Some("Ana"), align, 0.6).unwrap().into_owned();
+            let top = (f64::from(img.height()) * (1.0 - CAPTION_LINE_RATIO)) as u32;
+            (0..img.width())
+                .find(|&x| (top..img.height()).any(|y| img.get_pixel(x, y).0 == [31, 41, 55, 255]))
+                .unwrap()
+        };
+        let (left, center, right) = (ink_x(CaptionAlign::Left), ink_x(CaptionAlign::Center), ink_x(CaptionAlign::Right));
+        assert!(left < center && center < right, "{left} < {center} < {right}");
+    }
+
+    #[test]
     fn long_lines_shrink_to_fit_and_limits_apply() {
         let long = "x".repeat(80);
-        let img = art().render(Some(&long), 0.5).unwrap().into_owned();
+        let img = art().render(Some(&long), CaptionAlign::Center, 0.5).unwrap().into_owned();
         let (w, h) = img.dimensions();
         let caption_top = (f64::from(h) * (1.0 - CAPTION_LINE_RATIO)).ceil() as u32;
         let edge_ink = (caption_top..h).any(|y| img.get_pixel(0, y)[3] > 0 || img.get_pixel(w - 1, y)[3] > 0);
         assert!(!edge_ink, "el texto se reduce para no salirse");
-        assert!(caption_lines(Some("a\nb\nc\nd")).is_err());
+        assert!(caption_lines(Some("a\nb\nc\nd\ne")).is_ok());
+        assert!(caption_lines(Some("a\nb\nc\nd\ne\nf")).is_err());
         assert!(caption_lines(Some(&"x".repeat(81))).is_err());
     }
 }

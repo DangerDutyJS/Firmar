@@ -29,3 +29,4 @@ public/third-party-licenses.txt
 
 # artefactos de publicación (scripts/release.mjs)
 release/
+public/third-party-licenses.json

@@ -43,7 +43,7 @@ pub fn stamp(pdf: &[u8], art: &SignatureArt, placements: &[SignaturePlacement]) 
         let geometry = PageGeometry::read(&doc, page_id)?;
         let (page_w, page_h) = geometry.display_size();
         let aspect = (placement.height * page_h) / (placement.width * page_w);
-        let image_id = match art.render(placement.caption.as_deref(), aspect)? {
+        let image_id = match art.render(placement.caption.as_deref(), placement.caption_align.unwrap_or_default(), aspect)? {
             Cow::Borrowed(img) => match shared_image {
                 Some(id) => id,
                 None => {
@@ -325,7 +325,7 @@ pub(crate) mod tests {
 
     #[test]
     fn matrix_without_rotation() {
-        let p = SignaturePlacement { page: 0, x: 0.5, y: 0.0, width: 0.25, height: 0.1, caption: None };
+        let p = SignaturePlacement { page: 0, x: 0.5, y: 0.0, width: 0.25, height: 0.1, caption: None, caption_align: None };
         let m = geometry(0).image_matrix(&p);
         assert_eq!(m, [150.0, 0.0, 0.0, 80.0, 300.0, 720.0]);
     }
@@ -333,7 +333,7 @@ pub(crate) mod tests {
     #[test]
     fn matrix_with_rotation_90_keeps_size() {
         // Vista rotada: 800 de ancho x 600 de alto.
-        let p = SignaturePlacement { page: 0, x: 0.0, y: 0.0, width: 0.5, height: 0.5, caption: None };
+        let p = SignaturePlacement { page: 0, x: 0.0, y: 0.0, width: 0.5, height: 0.5, caption: None, caption_align: None };
         let [a, b, c, d, ..] = geometry(90).image_matrix(&p);
         let width = (a * a + b * b).sqrt();
         let height = (c * c + d * d).sqrt();
@@ -345,7 +345,7 @@ pub(crate) mod tests {
     fn stamps_requested_page_and_keeps_others() {
         let pdf = sample_pdf(2);
         let sig = SignatureArt::new(RgbaImage::from_pixel(8, 4, image::Rgba([0, 0, 255, 200])));
-        let p = SignaturePlacement { page: 1, x: 0.1, y: 0.8, width: 0.3, height: 0.1, caption: None };
+        let p = SignaturePlacement { page: 1, x: 0.1, y: 0.8, width: 0.3, height: 0.1, caption: None, caption_align: None };
         let out = stamp(&pdf, &sig, &[p]).unwrap();
 
         let doc = Document::load_mem(&out).unwrap();
@@ -362,7 +362,7 @@ pub(crate) mod tests {
     fn captions_get_their_own_image_and_plain_signatures_share_one() {
         let pdf = sample_pdf(3);
         let sig = SignatureArt::new(RgbaImage::from_pixel(40, 16, image::Rgba([0, 0, 0, 255])));
-        let plain = |page| SignaturePlacement { page, x: 0.1, y: 0.1, width: 0.3, height: 0.1, caption: None };
+        let plain = |page| SignaturePlacement { page, x: 0.1, y: 0.1, width: 0.3, height: 0.1, caption: None, caption_align: None };
         let with_text = SignaturePlacement { caption: Some("Juan Pérez\n28/10/2026".into()), height: 0.15, ..plain(2) };
         let out = stamp(&pdf, &sig, &[plain(0), plain(1), with_text]).unwrap();
 
@@ -378,7 +378,7 @@ pub(crate) mod tests {
     #[test]
     fn rejects_missing_page() {
         let sig = SignatureArt::new(RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255])));
-        let p = SignaturePlacement { page: 5, x: 0.1, y: 0.1, width: 0.1, height: 0.1, caption: None };
+        let p = SignaturePlacement { page: 5, x: 0.1, y: 0.1, width: 0.1, height: 0.1, caption: None, caption_align: None };
         assert!(matches!(stamp(&sample_pdf(1), &sig, &[p]), Err(FirmarError::InvalidInput(_))));
     }
 }

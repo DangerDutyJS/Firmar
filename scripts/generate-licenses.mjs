@@ -165,4 +165,17 @@ for (const group of ordered) {
 
 const out = join(root, "public", "third-party-licenses.txt");
 writeFileSync(out, lines.join("\n"), "utf8");
-console.log(`Licencias de ${total} componentes (${groups.size} textos distintos) → public/third-party-licenses.txt`);
+
+// Versión estructurada para la pestaña «Licencias»: la app muestra la lista y
+// carga el texto de cada licencia solo al abrirla (1,6 MB de golpe congelan la vista).
+const json = {
+  total,
+  texts: ordered.map((g) => g.text),
+  components: ordered
+    .flatMap((g, textIndex) =>
+      g.items.map((i) => ({ name: i.name, version: i.version, license: i.license, url: i.url, text: textIndex })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name)),
+};
+writeFileSync(join(root, "public", "third-party-licenses.json"), JSON.stringify(json), "utf8");
+console.log(`Licencias de ${total} componentes (${groups.size} textos distintos) → public/third-party-licenses.{txt,json}`);
