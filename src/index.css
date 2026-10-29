@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --color-ink-950: #0b0f17;
+  --color-ink-900: #111827;
+  --color-ink-800: #1b2333;
+  --color-ink-700: #2a3446;
+  --color-brand-400: #7aa2ff;
+  --color-brand-500: #4f7dff;
+  --color-brand-600: #3a63e0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 antialiased select-none;
+}
+
+input,
+textarea {
+  @apply select-text;
+}
+
+/* Fondo de tablero para ver la transparencia de la firma. */
+.checkerboard {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #eef1f6 25%, transparent 25%),
+    linear-gradient(-45deg, #eef1f6 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eef1f6 75%),
+    linear-gradient(-45deg, transparent 75%, #eef1f6 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}

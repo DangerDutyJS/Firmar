@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.nsh text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.ttf binary
