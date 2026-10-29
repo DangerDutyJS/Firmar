@@ -20,8 +20,9 @@ export function Isotype({ className }: { className?: string }) {
 /** El isotipo sobre su cuadro azul, como el ícono de la aplicación. */
 export function AppMark({ className = "" }: { className?: string }) {
   return (
-    <div className={`flex shrink-0 items-center justify-center rounded-[22%] p-[18%] ${className}`} style={{ background: BRAND.navy }}>
-      <Isotype className="h-full w-full" />
+    // Sin padding en %: en CSS se calcula sobre el ancho del padre, no del cuadro.
+    <div className={`flex shrink-0 items-center justify-center rounded-[22%] ${className}`} style={{ background: BRAND.navy }}>
+      <Isotype className="h-[64%] w-[64%]" />
     </div>
   );
 }
